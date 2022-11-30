@@ -1,0 +1,23 @@
+{
+  "name": "live2d-web-display",
+  "version": "0.0.0",
+  "description": "Display live2d model on web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "rollup -c -m -w",
+    "build": "rollup -c",
+    "compress": "uglifyjs dist/live2d-web-display.js -o dist/live2d-web-display.min.js",
+    "build:framework": "rollup -c framework.rollup.config.js"
+  },
+  "devDependencies": {
+    "@rollup/plugin-alias": "^4.0.2",
+    "@rollup/plugin-node-resolve": "^15.0.1",
+    "rollup": "^3.2.5",
+    "rollup-plugin-dts": "^5.0.0",
+    "rollup-plugin-typescript2": "^0.34.1",
+    "typescript": "^4.8.4",
+    "uglify-js": "^3.17.4"
+  },
+  "dependencies": {}
+}

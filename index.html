@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1900" />
+  <title>Live2D Sample App</title>
+</head>
+
+<body>
+  <style>* { margin: 0; padding: 0; } html, body { height: 100%; }</style>
+  <!-- Live2DCubismCore script -->
+  <script src = "lib/Core/live2dcubismcore.min.js"></script>
+  <!-- Framework script -->
+  <script src = "lib/RepackedFramework/live2d-cubism-framework.js"></script>
+  <!-- Build script -->
+  <script src = "dist/live2d-web-display.js"></script>
+  <!-- User's script -->
+  <script>
+    window.onload = () => {
+      if (Live2DWebDisplay.getInstance().initialize())
+        Live2DWebDisplay.getInstance().run()
+    }
+    window.onbeforeunload = () => Live2DWebDisplay.releaseInstance()
+    window.onresize = () => {
+      if (Live2DWebDisplay.CanvasSize === 'auto')
+        Live2DWebDisplay.getInstance().onResize()
+    }
+  </script>
+</body>
+
+</html>
