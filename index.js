@@ -6,3 +6,4 @@ window.onload = () => {
   this.displayer.run()
 }
 window.onbeforeunload = () => this.displayer.release()
+button.onclick = () => this.displayer.manager.nextScene()

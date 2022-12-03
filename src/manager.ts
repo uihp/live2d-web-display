@@ -92,7 +92,7 @@ class Manager {
         }
       }
       model.update()
-      model.draw(projection); 
+      model.draw(projection)
     }
   }
 

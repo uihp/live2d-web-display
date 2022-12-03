@@ -5,7 +5,7 @@ import dts from 'rollup-plugin-dts'
 
 export default [
   {
-    input: 'src/index.ts',
+    input: 'index.ts',
     output: {
       file: 'dist/live2d-web-display.js',
       format: 'umd',
@@ -19,7 +19,7 @@ export default [
     external: [/@framework\/*/]
   },
   {
-    input: 'src/index.ts',
+    input: 'index.ts',
     output: {
       file: 'dist/live2d-web-display.d.ts',
       format: 'esm'

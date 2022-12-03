@@ -1,29 +1,38 @@
 import { CubismFramework, Option } from '@framework/live2dcubismframework'
 import { LogLevel } from '@framework/live2dcubismframework'
+import { csmVector, iterator } from '@framework/type/csmvector'
 
-import View from './view'
+import Pointer from './pointer'
 import Manager from './manager'
-import TextureManager from './texture'
 
 interface Options {
     size: { width: number; height: number } | 'auto',
     framework: Option
 }
 
+export class TextureInfo {
+    constructor(
+        public img: HTMLImageElement,
+        public id: WebGLTexture = null,
+        public width = 0,
+        public height = 0,
+        public usePremultply: boolean,
+        public fileName: string
+    ) { }
+}
+
 class Displayer {
     gl: WebGLRenderingContext
-    frameBuffer: WebGLFramebuffer
-    view: View
+    pointer: Pointer
     manager: Manager
-    textureManager: TextureManager
+    textures: csmVector<TextureInfo>
     deltaTime = 0.0
     lastFrame = 0.0
 
     constructor(public canvas: HTMLCanvasElement, public options: Options) {
         this.gl = this.canvas.getContext('webgl')
-        this.frameBuffer = this.gl.getParameter(this.gl.FRAMEBUFFER_BINDING)
-        this.view = new View(this)
-        this.textureManager = new TextureManager(this.gl)
+        this.pointer = new Pointer(this)
+        this.textures = new csmVector<TextureInfo>()
     }
 
     public initialize(): boolean {
@@ -35,23 +44,20 @@ class Displayer {
             this.canvas.height = this.options.size.height
         }
         if ('ontouchend' in this.canvas) {
-            this.canvas.ontouchstart = (e) => this.onTouchBegan(e)
-            this.canvas.ontouchmove = (e) => this.onTouchMoved(e)
-            this.canvas.ontouchend = (e) => this.onTouchEnded(e)
-            this.canvas.ontouchcancel = (e) => this.onTouchCancel(e)
+            this.canvas.ontouchstart = e => this.pointer.onTouchBegan(e)
+            this.canvas.ontouchmove = e => this.pointer.onTouchMoved(e)
+            this.canvas.ontouchend = e => this.pointer.onTouchEnded(e)
+            this.canvas.ontouchcancel = e => this.pointer.onTouchCancel(e)
         } else {
-            this.canvas.onmousedown = e => this.onClickBegan(e)
-            this.canvas.onmousemove = e => this.onMouseMoved(e)
-            this.canvas.onmouseup = e => this.onClickEnded(e)
+            this.canvas.onmousedown = e => this.pointer.onClickBegan(e)
+            this.canvas.onmousemove = e => this.pointer.onMouseMoved(e)
+            this.canvas.onmouseup = e => this.pointer.onClickEnded(e)
         }
         if (!this.gl) {
             console.error('Cannot initialize WebGL. This browser does not support.')
             return false
         }
-        this.gl.enable(this.gl.BLEND)
-        this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA)
-        this.view.initialize()
-        this.view.initializeSprite(this.textureManager)
+        this.pointer.initialize()
         let options = this.options.framework
         if (!options) {
             options = new Option()
@@ -66,10 +72,7 @@ class Displayer {
     }
 
     public release(): void {
-        this.textureManager.release()
-        this.textureManager = null
-        this.view.release()
-        this.view = null
+        this.pointer = null
         this.manager = null
         CubismFramework.dispose()
     }
@@ -79,11 +82,13 @@ class Displayer {
         this.gl.clearColor(0.0, 0.0, 0.0, 1.0)
         this.gl.enable(this.gl.DEPTH_TEST)
         this.gl.depthFunc(this.gl.LEQUAL)
-        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT)
+        // this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT)
         this.gl.clearDepth(1.0)
         this.gl.enable(this.gl.BLEND)
         this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA)
-        this.view.render()
+        this.gl.flush()
+        this.pointer.render()
+        this.manager.onUpdate()
         requestAnimationFrame(() => this.run())
     }
 
@@ -93,118 +98,48 @@ class Displayer {
         this.lastFrame = currentTime
     }
 
-    public createShader(): WebGLProgram {
-        const vertexShaderId = this.gl.createShader(this.gl.VERTEX_SHADER)
-        if (vertexShaderId == null) {
-            console.error('failed to create vertexShader')
-            return null
+    public createTextureFromPngFile(
+        fileName: string,
+        usePremultiply: boolean,
+        callback: (textureInfo: TextureInfo) => void
+    ): void {
+        for (
+            let ite: iterator<TextureInfo> = this.textures.begin();
+            ite.notEqual(this.textures.end());
+            ite.preIncrement()
+        ) {
+            if (
+                ite.ptr().fileName == fileName &&
+                ite.ptr().usePremultply == usePremultiply
+            ) {
+                ite.ptr().img = new Image()
+                ite.ptr().img.onload = (): void => callback(ite.ptr())
+                ite.ptr().img.src = fileName
+                return
+            }
         }
-
-        const vertexShader: string =
-            'precision mediump float;' +
-            'attribute vec3 position;' +
-            'attribute vec2 uv;' +
-            'varying vec2 vuv;' +
-            'void main(void)' +
-            '{' +
-            '   gl_Position = vec4(position, 1.0);' +
-            '   vuv = uv;' +
-            '}'
-
-        this.gl.shaderSource(vertexShaderId, vertexShader)
-        this.gl.compileShader(vertexShaderId)
-
-        // フラグメントシェーダのコンパイル
-        const fragmentShaderId = this.gl.createShader(this.gl.FRAGMENT_SHADER)
-
-        if (fragmentShaderId == null) {
-            console.error('failed to create fragmentShader')
-            return null
+        const img = new Image()
+        img.onload = (): void => {
+            const tex: WebGLTexture = this.gl.createTexture()
+            this.gl.bindTexture(this.gl.TEXTURE_2D, tex)
+            this.gl.texParameteri(
+                this.gl.TEXTURE_2D,
+                this.gl.TEXTURE_MIN_FILTER,
+                this.gl.LINEAR_MIPMAP_LINEAR
+            )
+            this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR)
+            if (usePremultiply) this.gl.pixelStorei(this.gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
+            this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, img)
+            this.gl.generateMipmap(this.gl.TEXTURE_2D)
+            this.gl.bindTexture(this.gl.TEXTURE_2D, null)
+            const textureInfo: TextureInfo = new TextureInfo(
+                img, tex, img.width, img.height,
+                usePremultiply, fileName
+            )
+            this.textures.pushBack(textureInfo)
+            callback(textureInfo)
         }
-
-        const fragmentShader: string =
-            'precision mediump float;' +
-            'varying vec2 vuv;' +
-            'uniform sampler2D texture;' +
-            'void main(void)' +
-            '{' +
-            '   gl_FragColor = texture2D(texture, vuv);' +
-            '}'
-
-        this.gl.shaderSource(fragmentShaderId, fragmentShader)
-        this.gl.compileShader(fragmentShaderId)
-
-        // プログラムオブジェクトの作成
-        const programId = this.gl.createProgram()
-        this.gl.attachShader(programId, vertexShaderId)
-        this.gl.attachShader(programId, fragmentShaderId)
-
-        this.gl.deleteShader(vertexShaderId)
-        this.gl.deleteShader(fragmentShaderId)
-        this.gl.linkProgram(programId)
-        this.gl.useProgram(programId)
-        return programId
-    }
-
-    _captured: boolean
-    _mouseX: number
-    _mouseY: number
-    _isEnd: boolean
-
-    public onClickBegan(e: MouseEvent): void {
-        this._captured = true
-        this.view.onTouchesBegan(e.pageX, e.pageY)
-    }
-
-    public onMouseMoved(e: MouseEvent): void {
-        if (!this._captured) return
-        const rect = (e.target as Element).getBoundingClientRect()
-        this.view.onTouchesMoved(
-            e.clientX - rect.left,
-            e.clientY - rect.top
-        )
-    }
-
-    public onClickEnded(e: MouseEvent): void {
-        this._captured = false
-        const rect = (e.target as Element).getBoundingClientRect()
-        this.view.onTouchesEnded(
-            e.clientX - rect.left,
-            e.clientY - rect.top
-        )
-    }
-
-    public onTouchBegan(e: TouchEvent): void {
-        this._captured = true
-        this.view.onTouchesBegan(
-            e.changedTouches[0].pageX,
-            e.changedTouches[0].pageX
-        )
-    }
-
-    public onTouchMoved(e: TouchEvent): void {
-        e.preventDefault()
-        if (!this._captured) return
-        const rect = (e.target as Element).getBoundingClientRect()
-        const posX = e.changedTouches[0].clientX - rect.left
-        const posY = e.changedTouches[0].clientY - rect.top
-        this.view.onTouchesMoved(posX, posY)
-    }
-
-    public onTouchEnded(e: TouchEvent): void {
-        this._captured = false
-        const rect = (e.target as Element).getBoundingClientRect()
-        const posX = e.changedTouches[0].clientX - rect.left
-        const posY = e.changedTouches[0].clientY - rect.top
-        this.view.onTouchesEnded(posX, posY)
-    }
-
-    public onTouchCancel(e: TouchEvent): void {
-        this._captured = false
-        const rect = (e.target as Element).getBoundingClientRect()
-        const posX = e.changedTouches[0].clientX - rect.left
-        const posY = e.changedTouches[0].clientY - rect.top
-        this.view.onTouchesEnded(posX, posY)
+        img.src = fileName
     }
 }
 
