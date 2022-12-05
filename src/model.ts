@@ -25,9 +25,8 @@ import { csmString } from '@framework/type/csmstring'
 import { csmVector } from '@framework/type/csmvector'
 import { CubismLogError, CubismLogInfo } from '@framework/utils/cubismdebug'
 
-import * as Config from './config'
 import Displayer from './displayer'
-import { TextureInfo } from './displayer'
+import { Priority, TextureInfo } from './types'
 import WavFileHandler from './wav'
 
 enum LoadStep {
@@ -396,7 +395,7 @@ class Model extends CubismUserModel {
 
   public update(): void {
     if (this._state != LoadStep.CompleteSetup) return
-    const deltaTimeSeconds: number = this.displayer.deltaTime
+    const deltaTimeSeconds: number = this.displayer.manager.deltaTime
     this._userTimeSeconds += deltaTimeSeconds
     this._dragManager.update(deltaTimeSeconds)
     this._dragX = this._dragManager.getX()
@@ -407,8 +406,8 @@ class Model extends CubismUserModel {
     this._model.loadParameters();
     if (this._motionManager.isFinished()) {
       this.startRandomMotion(
-        Config.MotionGroupIdle,
-        Config.PriorityIdle
+        this.displayer.settings.modelConfigs[this.displayer.manager.sceneIndex].idle,
+        Priority.Idle
       )
     } else {
       motionUpdated = this._motionManager.updateMotion(
@@ -471,7 +470,7 @@ class Model extends CubismUserModel {
     priority: number,
     onFinishedMotionHandler?: FinishedMotionCallback
   ): CubismMotionQueueEntryHandle {
-    if (priority == Config.PriorityForce) {
+    if (priority == Priority.Force) {
       this._motionManager.setReservePriority(priority)
     } else if (!this._motionManager.reserveMotion(priority)) {
       if (this._debugMode) console.error("[APP]can't start motion.")
@@ -530,7 +529,7 @@ class Model extends CubismUserModel {
       this._expressionManager.startMotionPriority(
         motion,
         false,
-        Config.PriorityForce
+        Priority.Force
       )
     } else if (this._debugMode)
       console.log(`[APP]expression[${expressionId}] is null`)

@@ -13,15 +13,20 @@ html, body {
 }
 button {
     position: absolute;
-    margin: 7px;
+    right: 0;
+    margin: 10px;
     font-family: Arial, Helvetica, sans-serif;
     font-size: 14px;
-    padding: 10px 20px;
+    padding: 10px;
     -moz-border-radius: 30px;
     -webkit-border-radius: 30px;
     border-radius: 30px;
+    background-color: rgba(255,255,255,0.7);
     -moz-box-shadow: 0px 1px 3px rgba(0,0,0,0.5), inset 0px 0px 1px rgba(255,255,255,0.7);
     -webkit-box-shadow: 0px 1px 3px rgba(0,0,0,0.5), inset 0px 0px 1px rgba(255,255,255,0.7);
     box-shadow: 0px 1px 3px rgba(0,0,0,0.5), inset 0px 0px 1px rgba(255,255,255,0.7);
     text-shadow: 0px -1px 0px rgba(0,0,0,0.4), 0px 1px 0px rgba(255,255,255,0.3);
+}
+img {
+    display: block;
 }

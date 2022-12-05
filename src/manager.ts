@@ -4,22 +4,22 @@ import { ACubismMotion } from '@framework/motion/acubismmotion'
 import { csmVector } from '@framework/type/csmvector'
 // access ref
 import Model from './model'
-import * as Config from './config'
 // type ref
-import Displayer from './displayer' 
+import Displayer from './displayer'
 
 class Manager {
   displayer: Displayer
   viewMatrix: CubismMatrix44
   models: csmVector<Model>
   sceneIndex: number
+  deltaTime = 0.0
+  lastFrame = 0.0
 
   constructor(displayer: Displayer) {
     this.displayer = displayer
     this.viewMatrix = new CubismMatrix44()
     this.models = new csmVector<Model>()
     this.sceneIndex = 0
-    this.changeScene(this.sceneIndex)
   }
 
   public getModel(no: number): Model {
@@ -43,38 +43,28 @@ class Manager {
   }
 
   public onTap(x: number, y: number): void {
-    if (Config.DebugLogEnable) {
-      console.log(`[APP]tap point: {x: ${x.toFixed(2)} y: ${y.toFixed(2)}}`)
-    }
+    this.displayer.settings.callbackHandler('Interacted', `Pointer at: {x: ${x.toFixed(2)}, y: ${y.toFixed(2)}}`)
     for (let i = 0; i < this.models.getSize(); i++) {
-      if (this.models.at(i).hitTest(Config.HitAreaNameHead, x, y)) {
-        if (Config.DebugLogEnable) {
-          console.log(
-            `[APP]hit area: [${Config.HitAreaNameHead}]`
-          )
-        }
-        this.models.at(i).setRandomExpression()
-      } else if (this.models.at(i).hitTest(Config.HitAreaNameBody, x, y)) {
-        if (Config.DebugLogEnable) {
-          console.log(
-            `[APP]hit area: [${Config.HitAreaNameBody}]`
-          )
-        }
-        this.models
-          .at(i)
-          .startRandomMotion(
-            Config.MotionGroupTapBody,
-            Config.PriorityNormal,
-            (self: ACubismMotion): void => {
-              console.log('Motion Finished:')
-              console.log(self)
-            }
-          )
-      }
+      let areaname = this.models.at(i).onHit(x, y)
+      this.displayer.settings.callbackHandler('Interacted', `Hit Area: "${areaname}"`)
+      let modelConfig = this.displayer.settings.modelConfigs[this.sceneIndex]
+      if (areaname == modelConfig.expression) this.models.at(i).setRandomExpression()
+      this.models.at(i).startRandomMotion(
+        modelConfig.interaction[areaname],
+        this.displayer.settings.priority,
+        (e: ACubismMotion): void => this.displayer.settings.callbackHandler('Event', e)
+      )
     }
   }
 
+  public updateTime(): void {
+    let currentTime = Date.now()
+    this.deltaTime = (currentTime - this.lastFrame) / 1000
+    this.lastFrame = currentTime
+  }
+
   public onUpdate(): void {
+    this.updateTime()
     const { width, height } = this.displayer.canvas
     const modelCount: number = this.models.getSize()
     for (let i = 0; i < modelCount; ++i) {
@@ -97,28 +87,22 @@ class Manager {
   }
 
   public nextScene(): void {
-    const no: number = (this.sceneIndex + 1) % Config.ModelDirSize
+    const no: number = (this.sceneIndex + 1) % this.displayer.settings.modelConfigs.length
     this.changeScene(no)
   }
 
-  public changeScene(index: number): void {
+  public changeScene(index: number = this.sceneIndex): void {
     this.sceneIndex = index
-    if (Config.DebugLogEnable) {
-      console.log(`[APP]model index: ${this.sceneIndex}`)
-    }
-    const model: string = Config.ModelDir[index]
-    const modelPath: string = Config.ResourcesPath + model + '/'
-    let modelJsonName: string = Config.ModelDir[index]
-    modelJsonName += '.model3.json'
+    this.displayer.settings.callbackHandler('Interacted', `Model index: ${this.sceneIndex}`)
+    const modelConfig = this.displayer.settings.modelConfigs[index]
     this.releaseAllModel()
     this.models.pushBack(new Model(this.displayer))
-    this.models.at(0).loadAssets(modelPath, modelJsonName)
+    this.models.at(0).loadAssets(modelConfig.dirPath, modelConfig.fileName)
   }
 
   public setViewMatrix(m: CubismMatrix44) {
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 16; i++)
       this.viewMatrix.getArray()[i] = m.getArray()[i]
-    }
   }
 }
 
