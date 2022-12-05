@@ -4,3 +4,4 @@ dist/
 RepackedFramework/
 res/
 .vscode/
+config.js
